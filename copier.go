@@ -3,11 +3,72 @@ package copier
 import (
 	"database/sql"
 	"database/sql/driver"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 	"unicode"
 )
+
+type Copier struct {
+	Option
+}
+
+func New(opts ...Option) *Copier {
+	opt := defaultOption
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+	return &Copier{
+		Option: opt,
+	}
+}
+
+func (c *Copier) Copy(toValue interface{}, fromValue interface{}) (err error) {
+	return copier(toValue, fromValue, c.Option)
+}
+
+var defaultOption = Option{
+	IgnoreEmpty: true,
+	DeepCopy:    true,
+	Converters: []TypeConverter{
+		{
+			SrcType: time.Time{},
+			DstType: String,
+			Fn: func(src interface{}) (interface{}, error) {
+				s, ok := src.(time.Time)
+
+				if !ok {
+					return nil, errors.New("src type not matching")
+				}
+
+				if s.IsZero() {
+					return "", nil
+				} else {
+					return s.Format(time.RFC3339), nil
+				}
+			},
+		},
+		{
+			SrcType: String,
+			DstType: time.Time{},
+			Fn: func(src interface{}) (interface{}, error) {
+				s, ok := src.(string)
+
+				if !ok {
+					return nil, errors.New("src type not matching")
+				}
+
+				if val, err := time.Parse(time.RFC3339, s); err == nil {
+					return val, nil
+				} else {
+					return time.Time{}, nil
+				}
+			},
+		},
+	},
+}
 
 // These flags define options for tag handling
 const (
@@ -63,16 +124,6 @@ type flags struct {
 type tagNameMapping struct {
 	FieldNameToTag map[string]string
 	TagToFieldName map[string]string
-}
-
-// Copy copy things
-func Copy(toValue interface{}, fromValue interface{}) (err error) {
-	return copier(toValue, fromValue, Option{})
-}
-
-// CopyWithOption copy with option
-func CopyWithOption(toValue interface{}, fromValue interface{}, opt Option) (err error) {
-	return copier(toValue, fromValue, opt)
 }
 
 func copier(toValue interface{}, fromValue interface{}, opt Option) (err error) {
