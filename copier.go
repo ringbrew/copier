@@ -25,6 +25,10 @@ func New(opts ...Option) *Copier {
 	}
 }
 
+func (c *Copier) AppendConverter(converter TypeConverter) {
+	c.Converters = append(c.Converters, converter)
+}
+
 func (c *Copier) Copy(toValue interface{}, fromValue interface{}) (err error) {
 	return copier(toValue, fromValue, c.Option)
 }
